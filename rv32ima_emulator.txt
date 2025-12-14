@@ -12,7 +12,7 @@
 local myself = owner()
 
 if SERVER then
-    // screen logic
+    -- screen logic
     local curpos = 0
     local curline = 0
     local curcols = 0
@@ -110,18 +110,18 @@ if SERVER then
         end
     end
     
-    // this function reads client packet and send it to the screen
+    -- this function reads client packet and send it to the screen
     net.receive("console", function(netlen, ply)
         if not Console then
-            // check if we have a screen
+            -- check if we have a screen
             return
         else
-            // make sure it's us who received the packet
+            -- make sure it's us who received the packet
             if ply ~= myself then return end
 
             local data = net.readString(netlen)
 
-            // initialize the display once we found it
+            -- initialize the display once we found it
             if ConInit == false then
                 clearScreen()
                 ConInit = true
@@ -131,7 +131,7 @@ if SERVER then
         end
     end)
     
-    // chat logic
+    -- chat logic
     hook.add("PlayerSay", "plyctrl", function(_ply, _text, _team, _isded)
         if _ply == owner() and _text[1] == "!" then
             local rest = string.sub(_text, 2, nil)
@@ -149,9 +149,9 @@ end
 image_path = "linuximage.bin"
 dtb_path = "sixtyfourmb.dtb"
 
-// Predefs
+-- Predefs
 ram_image_offset = 0x80000000
-ram_size = 16*1024*1024 // 16MB
+ram_size = 16*1024*1024 -- 16MB
 ram_image = {}
 
 os_image = ""
@@ -159,11 +159,11 @@ dtb_image = ""
 os_size = 0
 dtb_size = 0
 
-// will be filled below
+-- will be filled below
 dtb_ptr = 0
 os_ptr = 0
 
-// As the owner spawning the chip, we're responsible for the OS image.
+-- As the owner spawning the chip, we're responsible for the OS image.
 os_image = file.read(image_path)
 assert(os_image, "Failed to load OS image")
 
@@ -176,7 +176,7 @@ assert(dtb_image, "Failed to load DTB image")
 dtb_size = string.len(dtb_image)
 dtb_ptr = ram_size - dtb_size - 192
 
-// Persist variables
+-- Persist variables
 regs = {0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -201,16 +201,16 @@ mepc = 0
 mtval = 0
 mcause = 0
 
-// Note: only a few bits are used.  (Machine = 3, User = 0)
-// Bits 0..1 = privilege.
-// Bit 2 = WFI (Wait for interrupt)
-// Bit 3+ = Load/Store reservation LSBs.
+-- Note: only a few bits are used.  (Machine = 3, User = 0)
+-- Bits 0..1 = privilege.
+-- Bit 2 = WFI (Wait for interrupt)
+-- Bit 3+ = Load/Store reservation LSBs.
 extraflags = 0
 
-// console
-conbuf = bit.stringstream(nil, nil, nil)
+-- console
+conbuf = bit.stringstream()
 
-// keyboard
+-- keyboard
 iskbhit = false
 kbkey = 0
 keyprocessed = true
@@ -239,11 +239,11 @@ local function toU32(n)
     return n
 end
 
-// LuaJIT bit binary handles bit differently.
-// Usually right shfiting a bit beyond 0 will discard them
-// but LuaJIT does not and return the old value.
-//
-// So use math logic when we're shifting more than 32 bits.
+--[[
+    LuaJIT bit binary handles bit differently.
+    Usually right shfiting a bit beyond 0 will discard them
+    but LuaJIT does not and return the old value.
+--]]
 local function bit_lshift64(n, shift)
     return n * (2 ^ shift)
 end
@@ -379,15 +379,15 @@ function rv32_handle_mem_load_control(addy)
 end
 
 local function rv32_handle_mem_store_control(addy, val)
-    if addy == 0x10000000 then      // UART 8250 / 16550 Data Buffer
+    if addy == 0x10000000 then      -- UART 8250 / 16550 Data Buffer
         conbuf:writeUInt8(val)
-    elseif addy == 0x11004004 then // CLNT
+    elseif addy == 0x11004004 then -- CLNT
         timermatchh = val
-    elseif addy == 0x11004000 then // CLNT
+    elseif addy == 0x11004000 then -- CLNT
         timermatchl = val
-    elseif addy == 0x11100000 then // SYSCON (reboot, poweroff, etc.)
+    elseif addy == 0x11100000 then -- SYSCON (reboot, poweroff, etc.)
         pc = pc + 4
-        return val // NOTE: PC will be PC of Syscon.
+        return val -- NOTE: PC will be PC of Syscon.
     end
 
     return 0
@@ -457,15 +457,15 @@ local function rv32_ima_step(elapsedus, count)
     end
     timerl = new_timer
 
-    // Handle Timer interrupt.
+    -- Handle Timer interrupt.
     if timerh > timermatchh or timerh == timermatchh and timerl > timermatchl and (timermatchh or timermatchl) then
-        extraflags = bit.band(extraflags, (bit.bnot(4))) // Clear WFI
-        mip = bit.bor(mip, bit.lshift(1, 7)) // MTIP of MIP // https://stackoverflow.com/a/61916199/2926815  Fire interrupt.
+        extraflags = bit.band(extraflags, (bit.bnot(4))) -- Clear WFI
+        mip = bit.bor(mip, bit.lshift(1, 7)) -- MTIP of MIP -- https://stackoverflow.com/a/61916199/2926815  Fire interrupt.
     else
         mip = bit.band(mip ,(bit.bnot(bit.lshift(1, 7))))
     end
     
-    // If WFI, don't run processor.
+    -- If WFI, don't run processor.
     if bit.band(extraflags, 4) != 0 then
         return 1
     end
@@ -475,7 +475,7 @@ local function rv32_ima_step(elapsedus, count)
     local cycle = cyclel
 
     if bit.band(mip, bit.lshift(1, 7)) != 0 and bit.band(mie, bit.lshift(1, 7)) != 0 and bit.band(mstatus, 0x8) != 0 then
-        // Timer interrupt.
+        -- Timer interrupt.
         trap = 0x80000007
         pc = pc - 4
     else
@@ -487,10 +487,10 @@ local function rv32_ima_step(elapsedus, count)
             local ofs_pc = pc - ram_image_offset
 
             if ofs_pc >= ram_size or ofs_pc < 0 then
-                trap = 1 + 1 // Handle access violation on instruction read.
+                trap = 1 + 1 -- Handle access violation on instruction read.
                 break
             elseif bit.band(ofs_pc, 3) != 0 then
-                trap = 1 + 0 // Handle PC-misaligned access
+                trap = 1 + 0 -- Handle PC-misaligned access
                 break
             else
                 ir = rv32_load4(ofs_pc)
@@ -498,21 +498,21 @@ local function rv32_ima_step(elapsedus, count)
 
                 local ir_switch = bit.band(ir, 0x7f)
                 
-                if ir_switch == 0x37 then // LUI (0b0110111)
+                if ir_switch == 0x37 then -- LUI (0b0110111)
                         rval = bit.band(ir, 0xFFFFF000)
-                elseif ir_switch == 0x17 then // AUIPC (0b0010111)
+                elseif ir_switch == 0x17 then -- AUIPC (0b0010111)
                         rval = pc + bit.band(ir, 0xFFFFF000)
-                elseif ir_switch == 0x6F then // JAL (0b1101111)
+                elseif ir_switch == 0x6F then -- JAL (0b1101111)
                         local reladdy = bit.bor(bit.rshift(bit.band(ir, 0x80000000), 11),
                                                 bit.rshift(bit.band(ir, 0x7FE00000), 20),
                                                 bit.rshift(bit.band(ir, 0x00100000), 9),
                                                 bit.band(ir, 0x000FF000))
                         if bit.band(reladdy, 0x00100000) != 0 then
                             reladdy = bit.bor(reladdy, 0xFFE00000)
-                        end // Sign extension.
+                        end -- Sign extension.
                         rval = pc + 4
                         pc = pc + reladdy - 4
-                elseif ir_switch == 0x67 then // JALR (0b1100111)
+                elseif ir_switch == 0x67 then -- JALR (0b1100111)
                         local imm = bit.rshift(ir, 20)
     
                         local imm_se_tmp = 0                    
@@ -522,9 +522,9 @@ local function rv32_ima_step(elapsedus, count)
                         
                         local imm_se = bit.bor(imm, imm_se_tmp)
                         rval = pc + 4
-                        //PC = ( (Reg[((IR >> 15) && 0x1F), number] + IMM_SE) && bNot(1)) - 4
+                        --PC = ( (Reg[((IR >> 15) && 0x1F), number] + IMM_SE) && bNot(1)) - 4
                         pc = ( (regs[bit.band(bit.rshift(ir, 15), 0x1F)] + imm_se) ) - 4
-                elseif ir_switch == 0x63 then // Branch (0b1100011)
+                elseif ir_switch == 0x63 then -- Branch (0b1100011)
                         local immm4 = bit.bor(bit.rshift(bit.band(ir, 0xF00), 7),
                                             bit.rshift(bit.band(ir, 0x7E000000), 20),
                                             bit.lshift(bit.band(ir, 0x80), 4),
@@ -532,34 +532,34 @@ local function rv32_ima_step(elapsedus, count)
                         if bit.band(immm4, 0x1000) != 0 then
                             immm4 = bit.bor(immm4, 0xFFFFE000)
                         end
-                        // TODO: These are signed integers
+                        -- TODO: These are signed integers
                         local rs1 = toS32( regs[bit.band(bit.rshift(ir, 15), 0x1F)] )
                         local rs2 = toS32( regs[bit.band(bit.rshift(ir, 20), 0x1F)] )
                         immm4 = pc + immm4 - 4
                         rdid = 0
                         local ir_btemp = bit.band(bit.rshift(ir, 12), 0x7)
-                        // BEQ, BNE, BLT, BGE, BLTU, BGEU
-                        if ir_btemp == 0 then // BEQ
+                        -- BEQ, BNE, BLT, BGE, BLTU, BGEU
+                        if ir_btemp == 0 then -- BEQ
                             if rs1 == rs2 then
                                 pc = immm4
                             end
-                        elseif ir_btemp == 1 then // BNE
+                        elseif ir_btemp == 1 then -- BNE
                             if rs1 != rs2 then
                                 pc = immm4
                             end
-                        elseif ir_btemp == 4 then // BLT
+                        elseif ir_btemp == 4 then -- BLT
                             if rs1 < rs2 then
                                 pc = immm4
                             end
-                        elseif ir_btemp == 5 then // BGE
+                        elseif ir_btemp == 5 then -- BGE
                             if rs1 >= rs2 then
                                 pc = immm4
                             end
-                        elseif ir_btemp == 6 then // BLTU
+                        elseif ir_btemp == 6 then -- BLTU
                             if toU32(rs1) < toU32(rs2) then
                                 pc = immm4
                             end
-                        elseif ir_btemp == 7 then // BGEU
+                        elseif ir_btemp == 7 then -- BGEU
                             if toU32(rs1) >= toU32(rs2) then
                                 pc = immm4
                             end
@@ -567,7 +567,7 @@ local function rv32_ima_step(elapsedus, count)
                             trap = (2+1)
                         end
 
-                elseif ir_switch == 0x03 then // Load (0b0000011)
+                elseif ir_switch == 0x03 then -- Load (0b0000011)
                     local rs1 = regs[bit.band(bit.rshift(ir, 15), 0x1F)]
                     local imm = bit.rshift(ir, 20)
                     local imm_se = imm
@@ -580,7 +580,7 @@ local function rv32_ima_step(elapsedus, count)
                     
                     if toU32(rsval) >= ram_size - 3 then
                         rsval = rsval + ram_image_offset
-                        if (0x10000000 <= rsval) and (rsval < 0x12000000) then // UART, CLNT
+                        if (0x10000000 <= rsval) and (rsval < 0x12000000) then -- UART, CLNT
                                 rval = rv32_handle_mem_load_control(rsval)
                         else
                             trap = (5+1)
@@ -588,22 +588,22 @@ local function rv32_ima_step(elapsedus, count)
                         end
                     else
                         local ir_ltemp = bit.band(bit.rshift(ir, 12), 0x7)
-                        if ir_ltemp == 0 then // LB
+                        if ir_ltemp == 0 then -- LB
                                 rval = rv32_load1_signed(rsval)
-                        elseif ir_ltemp == 1 then // LH
+                        elseif ir_ltemp == 1 then -- LH
                                 rval = rv32_load2_signed(rsval)
-                        elseif ir_ltemp == 2 then // LW
+                        elseif ir_ltemp == 2 then -- LW
                                 rval = rv32_load4(rsval)
-                        elseif ir_ltemp == 4 then // LBU
+                        elseif ir_ltemp == 4 then -- LBU
                                 rval = rv32_load1(rsval)
-                        elseif ir_ltemp == 5 then // LHU
+                        elseif ir_ltemp == 5 then -- LHU
                                 rval = rv32_load2(rsval)
                         else
                                 trap = (2+1)
                         end
                     end
 
-                elseif ir_switch == 0x23 then // Store 0b0100011
+                elseif ir_switch == 0x23 then -- Store 0b0100011
                     local rs1 = regs[bit.band(bit.rshift(ir, 15), 0x1F)]
                     local rs2 = regs[bit.band(bit.rshift(ir, 20), 0x1F)]
                     local addy = bit.bor(bit.band(bit.rshift(ir, 7), 0x1F), bit.rshift(bit.band(ir, 0xFE000000), 20))
@@ -623,25 +623,25 @@ local function rv32_ima_step(elapsedus, count)
                                 return rs2
                             end
                         else
-                            trap = (7+1) // Store access fault.
+                            trap = (7+1) -- Store access fault.
                             print(string.format("Store access fault at 0x%X", addy))
                             rval = addy
                         end
                     else
                         local ir_stmp = bit.band(bit.rshift(ir, 12), 0x7)
                         if ir_stmp == 0 then
-                                rv32_store1(addy, rs2) // SB
+                                rv32_store1(addy, rs2) -- SB
                         elseif ir_stmp == 1 then
-                                rv32_store2(addy, rs2) // SH
+                                rv32_store2(addy, rs2) -- SH
                         elseif ir_stmp == 2 then
-                                rv32_store4(addy, rs2) // SW
+                                rv32_store4(addy, rs2) -- SW
                         else
                                 trap = (2+1)
                         end
                     end
 
-                elseif ir_switch == 0x13 or   // Op-immediate 0b0010011
-                       ir_switch == 0x33 then // Op           0b0110011
+                elseif ir_switch == 0x13 or   -- Op-immediate 0b0010011
+                       ir_switch == 0x33 then -- Op           0b0110011
                     local imm = bit.rshift(ir, 20)
                     if bit.band(imm, 0x800) != 0 then
                         imm = bit.bor(imm, 0xFFFFF000)
@@ -656,35 +656,35 @@ local function rv32_ima_step(elapsedus, count)
                     end
 
                     if is_reg == true and bit.band(ir, 0x02000000) != 0 then
-                        local ir_optmp = bit.band(bit.rshift(ir, 12), 7) // 0x02000000 = RV32M
-                        // TODO: These aren't all correct, double check.
-                        if ir_optmp == 0 then // MUL
+                        local ir_optmp = bit.band(bit.rshift(ir, 12), 7) -- 0x02000000 = RV32M
+                        -- TODO: These aren't all correct, double check.
+                        if ir_optmp == 0 then -- MUL
                                 rval = bit.band((toS32(rs1) * toS32(rs2)), 0xFFFFFFFF)
-                        elseif ir_optmp == 1 then // MULH
+                        elseif ir_optmp == 1 then -- MULH
                                 rval = bit_rshift64(toS32(rs1) * toS32(rs2), 32)
-                        elseif ir_optmp == 2 then // MULHSU
+                        elseif ir_optmp == 2 then -- MULHSU
                                 rval = bit_rshift64(toS32(rs1) * rs2, 32)
-                        elseif ir_optmp == 3 then // MULHU
+                        elseif ir_optmp == 3 then -- MULHU
                                 rval = bit_rshift64(rs1 * rs2, 32)
-                        elseif ir_optmp == 4 then // DIV
+                        elseif ir_optmp == 4 then -- DIV
                                 if rs2 == 0 then
                                     rval = -1
                                 else
                                     rval = rv32_div(rs1, rs2)
                                 end
-                        elseif ir_optmp == 5 then // DIVU
+                        elseif ir_optmp == 5 then -- DIVU
                                 if rs2 == 0 then
                                     rval = 0xFFFFFFFF
                                 else
                                     rval = toU32(math.floor(rs1 / rs2))
                                 end
-                        elseif ir_optmp == 6 then // REM
+                        elseif ir_optmp == 6 then -- REM
                                 if rs2 == 0 then
                                     rval = rs1
                                 else
                                     rval = rv32_mod(rs1, rs2)
                                 end
-                        elseif ir_optmp == 7 then // REMU
+                        elseif ir_optmp == 7 then -- REMU
                                 if rs2 == 0 then
                                     rval = rs1
                                 else
@@ -692,7 +692,7 @@ local function rv32_ima_step(elapsedus, count)
                                 end
                         end
                     else                        
-                        // These could be either op-immediate or op commands.  Be careful.
+                        -- These could be either op-immediate or op commands.  Be careful.
                         local ir_opetmp = bit.band(bit.rshift(ir, 12), 7)
                         if ir_opetmp == 0 then
                             if is_reg == true and bit.band(ir, 0x40000000) != 0 then
@@ -722,18 +722,18 @@ local function rv32_ima_step(elapsedus, count)
                         end
                     end
 
-                elseif ir_switch == 0x0F then // 0b0001111
-                    rdid = 0   // fencetype = (ir >> 12) & 0b111; We ignore fences in this impl.
-                elseif ir_switch == 0x73 then // Zifencei+Zicsr  (0b1110011)
+                elseif ir_switch == 0x0F then -- 0b0001111
+                    rdid = 0   -- fencetype = (ir >> 12) & 0b111; We ignore fences in this impl.
+                elseif ir_switch == 0x73 then -- Zifencei+Zicsr  (0b1110011)
                     local csrno = bit.rshift(ir, 20)
                     local microop = bit.band(bit.rshift(ir, 12), 0x7)
-                    if bit.band(microop, 3) != 0 then // It's a Zicsr function.
+                    if bit.band(microop, 3) != 0 then -- It's a Zicsr function.
                         local rs1imm = bit.band(bit.rshift(ir, 15), 0x1F)
                         local rs1 = regs[rs1imm]
                         local writeval = rs1
 
-                        // https://raw.githubusercontent.com/riscv/virtual-memory/main/specs/663-Svpbmt.pdf
-                        // Generally, support for Zicsr
+                        -- https://raw.githubusercontent.com/riscv/virtual-memory/main/specs/663-Svpbmt.pdf
+                        -- Generally, support for Zicsr
                         if csrno == 0x340 then
                             rval = mscratch
                         elseif csrno == 0x305 then
@@ -753,34 +753,34 @@ local function rv32_ima_step(elapsedus, count)
                         elseif csrno == 0x343 then
                             rval = mtval
                         elseif csrno == 0xF11 then
-                            rval = 0xFF0FF0FF // mvendorid
+                            rval = 0xFF0FF0FF -- mvendorid
                         elseif csrno == 0x301 then
-                            rval = 0x40401101 // misa (XLEN=32, IMA+X)
+                            rval = 0x40401101 -- misa (XLEN=32, IMA+X)
 
-                            /* Everything here are commented out.
-                                                //case 0x3B0: rval = 0; break; //pmpaddr0
-                                                //case 0x3a0: rval = 0; break; //pmpcfg0
-                                                //case 0xf12: rval = 0x00000000; break; //marchid
-                                                //case 0xf13: rval = 0x00000000; break; //mimpid
-                                                //case 0xf14: rval = 0x00000000; break; //mhartid
-                            */
+                            --[[ Everything here are commented out.
+                                                case 0x3B0: rval = 0; break; --pmpaddr0
+                                                case 0x3a0: rval = 0; break; --pmpcfg0
+                                                case 0xf12: rval = 0x00000000; break; --marchid
+                                                case 0xf13: rval = 0x00000000; break; --mimpid
+                                                case 0xf14: rval = 0x00000000; break; --mhartid
+                            --]]
 
                         else
                             rval = rv32_othercsr_read(csrno)
                         end
 
                         if microop == 1 then
-                            writeval = rs1 // CSRRW
+                            writeval = rs1 -- CSRRW
                         elseif microop == 2 then
-                            writeval = bit.bor(rval, rs1) // CSRRS
+                            writeval = bit.bor(rval, rs1) -- CSRRS
                         elseif microop == 3 then
-                            writeval = bit.band(rval, bit.bnot(rs1)) // CSRRC
+                            writeval = bit.band(rval, bit.bnot(rs1)) -- CSRRC
                         elseif microop == 5 then
-                            writeval = rs1imm // CSRRWI
+                            writeval = rs1imm -- CSRRWI
                         elseif microop == 6 then
-                            writeval = bit.bor(rval, rs1imm) // CSRRSI
+                            writeval = bit.bor(rval, rs1imm) -- CSRRSI
                         elseif microop == 7 then
-                            writeval = bit.band(rval, bit.bnot(rs1imm)) // CSRRCI
+                            writeval = bit.band(rval, bit.bnot(rs1imm)) -- CSRRCI
                         end
 
                         if csrno == 0x340 then
@@ -800,115 +800,115 @@ local function rv32_ima_step(elapsedus, count)
                         elseif csrno == 0x343 then
                                 mtval = writeval
 
-                            // These were commented out.
-                            //case 0x3a0: break; //pmpcfg0
-                            //case 0x3B0: break; //pmpaddr0
-                            //case 0xf11: break; //mvendorid
-                            //case 0xf12: break; //marchid
-                            //case 0xf13: break; //mimpid
-                            //case 0xf14: break; //mhartid
-                            //case 0x301: break; //misa
+                            -- These were commented out.
+                            --case 0x3a0: break; --pmpcfg0
+                            --case 0x3B0: break; --pmpaddr0
+                            --case 0xf11: break; --mvendorid
+                            --case 0xf12: break; --marchid
+                            --case 0xf13: break; --mimpid
+                            --case 0xf14: break; --mhartid
+                            --case 0x301: break; --misa
                         else
                             rv32_othercsr_write(csrno, writeval)
                         end
-                        elseif microop == 0x0 then // "SYSTEM" 0b000
+                        elseif microop == 0x0 then -- "SYSTEM" 0b000
                             rdid = 0
-                            if csrno == 0x105 then                  // WFI (Wait for interrupts)
-                                mstatus = bit.bor(mstatus, 8)       // Enable interrupts
-                                extraflags = bit.bor(extraflags, 4) // Infor environment we want to go to sleep.
+                            if csrno == 0x105 then                  -- WFI (Wait for interrupts)
+                                mstatus = bit.bor(mstatus, 8)       -- Enable interrupts
+                                extraflags = bit.bor(extraflags, 4) -- Infor environment we want to go to sleep.
                                 pc = pc + 4
                                 return 1
-                            elseif bit.band(csrno, 0xFF) == 0x02 then // MRET
-                                // https://raw.githubusercontent.com/riscv/virtual-memory/main/specs/663-Svpbmt.pdf
-                                // Table 7.6. MRET then in mstatus/mstatush sets MPV=0, MPP=0, MIE=MPIE, and MPIE=1. La
-                                // Should also update mstatus to reflect correct mode.
+                            elseif bit.band(csrno, 0xFF) == 0x02 then -- MRET
+                                -- https://raw.githubusercontent.com/riscv/virtual-memory/main/specs/663-Svpbmt.pdf
+                                -- Table 7.6. MRET then in mstatus/mstatush sets MPV=0, MPP=0, MIE=MPIE, and MPIE=1. La
+                                -- Should also update mstatus to reflect correct mode.
                                 local startmstatus = mstatus
                                 local startextraflags = extraflags
                                 mstatus = bit.bor(bit.rshift(bit.band(startmstatus, 0x80), 4), bit.lshift(bit.band(startextraflags, 3), 11), 0x80)
                                 extraflags = bit.bor(bit.band(startextraflags, bit.bnot(3)), bit.band(bit.rshift(startmstatus, 11), 3))
                                 pc = mepc - 4
                             else
-                                if csrno == 0 then // ECALL; 8 = "Environment call from U-mode";
-                                                   //       11 = "Environment call from M-mode"
+                                if csrno == 0 then -- ECALL; 8 = "Environment call from U-mode";
+                                                   --       11 = "Environment call from M-mode"
                                     if bit.band(extraflags, 3) != 0 then
                                         trap = (11+1)
                                     else
                                         trap = (8+1)
                                     end
-                                elseif csrno == 1 then // EBREAK 3 = "Breakpoint"
+                                elseif csrno == 1 then -- EBREAK 3 = "Breakpoint"
                                     trap = (3+1)
-                                elseif csrno == 0x105 then // WFI
+                                elseif csrno == 0x105 then -- WFI
                                     mstatus = bit.bor(mstatus, 8)
                                     extraflags = bit.bor(extraflags, 4)
                                     pc = pc + 4
                                 else
-                                    trap = (2+1) // Illegal opcode.
+                                    trap = (2+1) -- Illegal opcode.
                                 end
                             end
                         else
-                            trap = (2+1) // Note micrrop 0b100 == undefined.
+                            trap = (2+1) -- Note micrrop 0b100 == undefined.
                         end
-                elseif ir_switch == 0x2F then // RV32A (0b00101111)
+                elseif ir_switch == 0x2F then -- RV32A (0b00101111)
                     local rs1 = regs[bit.band(bit.rshift(ir, 15), 0x1F)]
                     local rs2 = regs[bit.band(bit.rshift(ir, 20), 0x1F)]
                     local irmid = bit.band(bit.rshift(ir, 27), 0x1F)
 
                     rs1 = rs1 - ram_image_offset
 
-                    // We don't implement load/store from UART or CLNT with RV32A here.
+                    -- We don't implement load/store from UART or CLNT with RV32A here.
                     if rs1 >= ram_size - 3 then
-                        trap = (7+1) // Store/AMO access fault
+                        trap = (7+1) -- Store/AMO access fault
                         rval = rs1 + ram_image_offset
                     else
                         rval = rv32_load4(rs1)
                         
-                        // Referenced a little bit of https://github.com/franzflasch/riscv_em/blob/master/src/core/core.c
+                        -- Referenced a little bit of https://github.com/franzflasch/riscv_em/blob/master/src/core/core.c
                         local dowrite = true
                         
-                        if irmid == 2 then // LR.W (0b00010)
+                        if irmid == 2 then -- LR.W (0b00010)
                             dowrite = false
                             extraflags = bit.bor(bit.band(extraflags, 0x07), bit.lshift(rs1, 3))
-                        elseif irmid == 3 then // SC.W (0b00011) (Make sure we have a slot, and, it's valid)
-                            rval = bit.rshift(extraflags, 3) != bit.band(rs1, 0x1FFFFFFF) // Validate that our reservation slot is OK.
-                            dowrite = !rval // Only write if slot is valid.
+                        elseif irmid == 3 then -- SC.W (0b00011) (Make sure we have a slot, and, it's valid)
+                            rval = bit.rshift(extraflags, 3) != bit.band(rs1, 0x1FFFFFFF) -- Validate that our reservation slot is OK.
+                            dowrite = !rval -- Only write if slot is valid.
                             if dowrite then rval = 0 else rval = 1 end
-                        elseif irmid == 1 then // AMOSWAP.W (0b00001)
-                            // do nothing
+                        elseif irmid == 1 then -- AMOSWAP.W (0b00001)
+                            -- do nothing
 
-                        elseif irmid == 0 then // AMOADD.W (0b00000)
+                        elseif irmid == 0 then -- AMOADD.W (0b00000)
                             rs2 = rs2 + rval
-                        elseif irmid == 4 then // AMOXOR.W (0b00100)
+                        elseif irmid == 4 then -- AMOXOR.W (0b00100)
                             rs2 = bit.bxor(rs2, rval)
-                        elseif irmid == 12 then // AMOAND.W (0b01100)
+                        elseif irmid == 12 then -- AMOAND.W (0b01100)
                             rs2 = bit.band(rs2, rval)
-                        elseif irmid == 8 then // AMOOR.W (0b01000)
+                        elseif irmid == 8 then -- AMOOR.W (0b01000)
                             rs2 = bit.bor(rs2, rval)
-                        elseif irmid == 16 then // AMOMIN.W (0b10000)
+                        elseif irmid == 16 then -- AMOMIN.W (0b10000)
                             if toS32(rs2) < toS32(rval) then
                                 rs2 = rs2
                             else
                                 rs2 = rval
                             end
-                        elseif irmid == 20 then // AMOMAX.W (0b10100)
+                        elseif irmid == 20 then -- AMOMAX.W (0b10100)
                             if toS32(rs2) > toS32(rval) then
                                 rs2 = rs2
                             else
                                 rs2 = rval
                             end
 
-                        elseif irmid == 24 then // AMOMINU.W (0b11000)                                        
+                        elseif irmid == 24 then -- AMOMINU.W (0b11000)                                        
                             if rs2 < rval then
                                 rs2 = rs2
                             else
                                 rs2 = rval
                             end
-                        elseif irmid == 28 then // AMOMAXU.W (0b11100)
+                        elseif irmid == 28 then -- AMOMAXU.W (0b11100)
                             if rs2 > rval then
                                 rs2 = rs2
                             else
                                 rs2 = rval
                             end
-                        else // Not supported.
+                        else -- Not supported.
                             trap = (2+1)
                             dowrite = false
                         end
@@ -918,17 +918,17 @@ local function rv32_ima_step(elapsedus, count)
                         end
                     end
                 else
-                    trap = (2+1) // Fault: Invalid opcode.
+                    trap = (2+1) -- Fault: Invalid opcode.
                 end
                     
-                // If there was a trap, do NOT allow register writeback.
+                -- If there was a trap, do NOT allow register writeback.
                 if trap != 0 then
                     rv32_postexec(pc, ir, trap)
                     break
                 end
                     
                 if rdid != 0 then
-                    // Write back register.
+                    -- Write back register.
                     regs[rdid] = toU32(rval)
                 end
             end
@@ -938,12 +938,12 @@ local function rv32_ima_step(elapsedus, count)
         end
     end
 
-    // Handle traps and interrupts.
+    -- Handle traps and interrupts.
     if trap != 0 then
-        if bit.band(trap, 0x80000000) != 0 then // If prefixed with 1 in MSB, it's an interrupt, not a trap.
+        if bit.band(trap, 0x80000000) != 0 then -- If prefixed with 1 in MSB, it's an interrupt, not a trap.
             mcause = trap
             mtval = 0
-            pc = pc + 4 // PC needs to point to where the PC will return to.
+            pc = pc + 4 -- PC needs to point to where the PC will return to.
         else
             mcause = trap - 1
             
@@ -954,13 +954,13 @@ local function rv32_ima_step(elapsedus, count)
             end
         end
 
-        mepc = pc // TRICKY: The kernel advances mepc automatically.
-        //#CSR( mstatus ) & 8 = MIE, & 0x80 = MPIE
-        // On an interrupt, the system moves current MIE into MPIE
+        mepc = pc -- TRICKY: The kernel advances mepc automatically.
+        -- #CSR( mstatus ) & 8 = MIE, & 0x80 = MPIE
+        -- On an interrupt, the system moves current MIE into MPIE
         mstatus = bit.bor(bit.lshift(bit.band(mstatus, 0x08), 4), bit.lshift(bit.band(extraflags, 3), 11))
         pc = (mtvec - 4)
 
-        // If trapping, always enter machine mode.
+        -- If trapping, always enter machine mode.
         extraflags = bit.bor(extraflags, 3)
         trap = 0
         pc = pc + 4
@@ -976,15 +976,15 @@ local function rv32_ima_step(elapsedus, count)
     return 0
 end
 
-// DATA INITIALIZATION
+-- DATA INITIALIZATION
 local function start_emu()
-    // Load device tree blob to RAM
+    -- Load device tree blob to RAM
     assert(type(dtb_image) == "string", "dtb image is not file")
 
     print(string.format("dtb ptr: 0x%x - size: 0x%x", dtb_ptr, dtb_size))
 
     pc = ram_image_offset
-    regs[0] = 0 // first value is null
+    regs[0] = 0 -- first value is null
     regs[10] = 0x00
     regs[11] = ram_image_offset + dtb_ptr
     extraflags = bit.bor(extraflags, 3)
@@ -1034,9 +1034,9 @@ local function start_emu()
         last_us = last_us + elapsed_us
         local i = 0
         while (quotaCheck(0.90) and i < instr_count) do
-            local ret = rv32_ima_step(elapsed_us, instrs_per_flip) // Execute upto 1024 cycles before breaking out.
+            local ret = rv32_ima_step(elapsed_us, instrs_per_flip) -- Execute upto 1024 cycles before breaking out.
             if ret == 0 or ret == 1 then
-                // do nothing
+                -- do nothing
             elseif ret == 0x7777 then
                 restart(nil)
             elseif ret == 0x5555 then
@@ -1117,3 +1117,5 @@ net.receive("keyboard", function(netlen, ply)
         end
     end
 end)
+
+-- vim: set ft=lua ts=4 et :
