@@ -10,6 +10,7 @@
 --]]
 
 local myself = owner()
+local chip = chip()
 
 if SERVER then
     -- screen logic
@@ -21,6 +22,9 @@ if SERVER then
     local Console
     local Keyboard
     local ConInit = false
+    
+    -- for 0x07 (BEL) escape code
+    local beep = sound.create(chip, "hl1/fvox/beep.wav")
 
     wire.adjustInputs({ "Keyboard", "Console" }, { "Wirelink", "Wirelink" })    
     hook.add("input", "getwirelinks", function(name, val)
@@ -31,25 +35,21 @@ if SERVER then
         end
     end)
     
-    
-    local debounce = false
     hook.add("Think", "kbloop", function()
         if not Keyboard then return end
         
         if Keyboard[0] > 0 then
-            net.start("keyboard")
-            if debounce then
-                net.writeBool(false)
-            else
-                net.writeBool(true)
-                net.writeUInt(Keyboard[1], 8)
-                debounce = true
+            local keycode = Keyboard[1]
+            -- Ignore shift keys
+            if keycode == 154 or keycode == 155 then
+                Keyboard[0] = 0
+                return
             end
-            net.send()
-        end
-        
-        if debounce and Keyboard[0] == 0 then
-            debounce = false
+            net.start("keyboard")
+            net.writeBool(true)
+            net.writeUInt(keycode, 8)
+            net.send()                
+            Keyboard[0] = 0
         end
     end)
 
@@ -67,8 +67,28 @@ if SERVER then
     local function printChar(char)
         local byte = char:byte(1)
         
-        char_funcs = {
-            [10] = function()
+        char_funcs = {            
+            -- bell
+            [0x07] = function()
+                beep:stop()
+                beep:play()
+            end,
+            
+            -- backspace
+            [0x08] = function()
+                Console[curpos - 2] = 0
+                curpos = curpos - 2
+                Console[2045] = curpos
+            end,
+            
+            -- tabstop
+            [0x09] = function()
+                curpos = curpos + 6
+                Console[2045] = curpos
+            end,
+            
+            -- line feed (new line)
+            [0x0A] = function()
                 local oldpos = Console[2045] - 2
                 local newpos = oldpos + 60 - oldpos % 60
                 
@@ -80,12 +100,9 @@ if SERVER then
                 curpos = newpos
                 Console[2045] = curpos
             end,
-            [127] = function()
-                Console[curpos - 2] = 0
-                concurpos = curpos - 2
-                Console[2045] = curpos
-            end
         }
+        -- carriage return
+        char_funcs[0x0D] = char_funcs[0x0A]
         
         if char_funcs[byte] then
             char_funcs[byte]()
